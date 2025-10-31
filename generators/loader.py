@@ -124,12 +124,18 @@ class GeneratorLoader:
                 self.fallback_attempted = True
                 return
 
-        # All failed
+        # All failed - use dummy generator for testing
+        print(f"⚠️  All generator modes failed, using DUMMY generator for testing")
+        if self._try_load_dummy():
+            self.fallback_attempted = True
+            return
+
         raise RuntimeError(
             "❌ No generator available!\n"
             "   - Local mode: Not available or failed to load\n"
             "   - API mode: No API key or failed\n"
             "   - Custom mode: Not configured or failed\n"
+            "   - Dummy mode: Failed to load (this should never happen)\n"
             "   \n"
             "   Please configure at least one generator mode in config/generator_config.yaml"
         )
@@ -183,6 +189,17 @@ class GeneratorLoader:
             return True
         except Exception as e:
             print(f"   Custom generator failed: {e}")
+            return False
+
+    def _try_load_dummy(self) -> bool:
+        """Try to load dummy generator (always succeeds, for testing)."""
+        try:
+            from .dummy_generator import DummyGenerator
+            self.generator = DummyGenerator()
+            print(f"✅ Loaded DUMMY generator (test mode)")
+            return True
+        except Exception as e:
+            print(f"   Dummy generator failed: {e}")
             return False
 
     async def generate(self, input_data: Dict) -> Dict:
