@@ -154,6 +154,10 @@ class StoryGenerationSynapse(bt.Synapse):
     @classmethod
     def validate_task_type(cls, v: str) -> str:
         """Validate task_type is one of the allowed values."""
+        # Allow empty string for initialization (Bittensor creates empty Synapse first)
+        if v == "":
+            return v
+
         allowed = ["blueprint", "characters", "story_arc", "chapters"]
         if v not in allowed:
             raise ValueError(f"task_type must be one of {allowed}, got {v}")
