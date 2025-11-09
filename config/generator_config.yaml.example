@@ -1,7 +1,8 @@
-# StoryFi Generator Configuration Example
+# StoryFi Generator Configuration
 # 
-# Copy this file to generator_config.yaml and customize for your setup.
-# 
+# This file controls which story generation backend the miner uses.
+# Miners are free to choose any implementation method.
+#
 # Reward Multipliers (applied by validators):
 # - local: 1.5x (recommended - full decentralization)
 # - api: 0.5x (fallback only)
@@ -14,7 +15,12 @@ generator:
   # "vllm" - Ultra-fast local inference (2-3x faster, production-grade)
   # "api" - Use cloud API (fallback)
   # "custom" - Use custom script or HTTP endpoint
-  mode: "local"
+  mode: "local"  # Changed to API mode for testing
+
+  # Prompt Template System
+  # Allows customizing prompts without modifying code
+  use_templates: true
+  template_dir: "./config/prompts"  # Directory containing custom templates
 
   # ============================================
   # LOCAL MODE CONFIGURATION
@@ -88,20 +94,23 @@ generator:
   # ============================================
   api:
     # Provider: "openai" | "gemini" | "anthropic" (TODO) | "custom"
-    provider: "openai"
+    provider: "gemini"  # Using OpenAI-compatible API (智谱AI GLM-4)
 
     # Environment variable containing API key
     # For OpenAI: OPENAI_API_KEY
     # For Gemini: GEMINI_API_KEY
-    api_key_env: "OPENAI_API_KEY"
+    # For 智谱AI: ZHIPU_API_KEY
+    api_key_env: "GEMINI_API_KEY"
 
     # Model name
     # OpenAI: "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"
     # Gemini: "gemini-2.0-flash-exp", "gemini-1.5-pro"
-    model: "gpt-4o-mini"
+    # 智谱AI: "glm-4", "glm-4-flash"
+    model: "gemini-2.0-flash-exp"  # 智谱AI快速模型
 
     # Custom endpoint (for custom providers)
-    endpoint: null
+    # 智谱AI endpoint
+    endpoint: null  # Only needed for custom providers
 
   # ============================================
   # CUSTOM MODE CONFIGURATION (Advanced)

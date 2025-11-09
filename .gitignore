@@ -3,6 +3,9 @@
 .env.local
 .env.production
 
+# Generator configuration (contains personal API settings)
+config/generator_config.yaml
+
 # Python
 __pycache__/
 *.py[cod]
