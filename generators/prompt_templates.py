@@ -79,7 +79,16 @@ Generate a comprehensive story blueprint with:
 6. Tone
 7. Target Audience
 
-Output as JSON.""")
+Output as a single JSON object (NOT an array). Example format:
+{
+  "title": "...",
+  "genre": "...",
+  "setting": "...",
+  "core_conflict": "...",
+  "themes": [...],
+  "tone": "...",
+  "target_audience": "..."
+}""")
             },
 
             "characters": {

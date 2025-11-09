@@ -159,6 +159,31 @@ class StoryMiner:
 
                         # Parse JSON
                         output_data = json.loads(content)
+
+                        # Validate format matches task type (Protocol v3.2.0)
+                        # blueprint should return Dict, not List
+                        # characters/story_arc should return List, not Dict
+                        if synapse.task_type == "blueprint" and isinstance(output_data, list):
+                            bt.logging.warning(
+                                f"⚠️  Blueprint task returned array instead of object. "
+                                f"LLM misunderstood the prompt format."
+                            )
+                            # Wrap in error object with helpful context
+                            output_data = {
+                                "error": "Format mismatch: blueprint should return object, not array",
+                                "hint": "Check your prompt templates - blueprint needs explicit format instruction",
+                                "raw_output": output_data
+                            }
+                        elif synapse.task_type in ["characters", "story_arc"] and isinstance(output_data, dict):
+                            bt.logging.warning(
+                                f"⚠️  {synapse.task_type} task returned object instead of array. "
+                                f"LLM misunderstood the prompt format."
+                            )
+                            output_data = {
+                                "error": f"Format mismatch: {synapse.task_type} should return array, not object",
+                                "hint": "Check your prompt templates - array tasks need explicit [] instruction",
+                                "raw_output": output_data
+                            }
                     else:
                         output_data = {"error": "Empty response from generator"}
                 except json.JSONDecodeError:
