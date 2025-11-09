@@ -72,3 +72,4 @@ htmlcov/
 # System
 .DS_Store
 Thumbs.db
+LESSONS_LEARNED.md
