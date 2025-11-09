@@ -71,7 +71,11 @@ class APIGenerator(StoryGenerator):
         if self.provider == "openai":
             if not OPENAI_AVAILABLE:
                 raise GeneratorConfigError("openai library not installed")
-            self.client = AsyncOpenAI(api_key=self.api_key)
+            # Support custom endpoint (for OpenAI-compatible APIs like 智谱AI)
+            if self.endpoint:
+                self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.endpoint)
+            else:
+                self.client = AsyncOpenAI(api_key=self.api_key)
         
         elif self.provider == "gemini":
             if not GEMINI_AVAILABLE:

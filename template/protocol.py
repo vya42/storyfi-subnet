@@ -167,6 +167,10 @@ class StoryGenerationSynapse(bt.Synapse):
     @classmethod
     def validate_protocol_version(cls, v: str) -> str:
         """Validate protocol_version format (X.Y.Z)."""
+        # Allow empty string for initialization (Bittensor creates empty Synapse first)
+        if v == "":
+            return v
+
         if not v or len(v.split(".")) != 3:
             raise ValueError(f"protocol_version must be in format X.Y.Z, got {v}")
         return v
