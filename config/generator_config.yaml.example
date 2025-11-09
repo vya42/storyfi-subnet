@@ -11,11 +11,11 @@
 generator:
   # Mode: "local" | "api" | "vllm" | "custom"
   #
-  # "local" - Use local GPU model via transformers (recommended)
-  # "vllm" - Ultra-fast local inference (2-3x faster, production-grade)
-  # "api" - Use cloud API (fallback)
-  # "custom" - Use custom script or HTTP endpoint
-  mode: "local"  # Changed to API mode for testing
+  # "local" - Use local GPU model via transformers (1.5x rewards, requires GPU)
+  # "vllm" - Ultra-fast local inference (1.5x rewards, requires GPU)
+  # "api" - Use cloud API (0.5x rewards, easiest to start)
+  # "custom" - Use custom script or HTTP endpoint (1.0x rewards)
+  mode: "api"  # Default to API mode (easiest setup)
 
   # Prompt Template System
   # Allows customizing prompts without modifying code
@@ -27,12 +27,23 @@ generator:
   # ============================================
   local:
     # HuggingFace model name
-    # Recommended models:
+    #
+    # FREE models (no HuggingFace login required):
+    # - Qwen/Qwen2.5-7B-Instruct (7B, excellent quality, 14GB VRAM) ⭐ RECOMMENDED
+    # - Qwen/Qwen2.5-14B-Instruct (14B, better quality, 28GB VRAM)
+    # - mistralai/Mistral-7B-Instruct-v0.2 (7B, good quality, 14GB VRAM)
+    #
+    # GATED models (require HuggingFace account + access request):
     # - meta-llama/Llama-3.1-8B-Instruct (8B, excellent quality, 16GB VRAM)
     # - meta-llama/Llama-3.1-70B-Instruct (70B, best quality, 80GB VRAM)
     # - mistralai/Mixtral-8x7B-Instruct-v0.1 (56B, great quality, 60GB VRAM)
-    # - Qwen/Qwen2.5-7B-Instruct (7B, fast, 14GB VRAM)
-    model_name: "meta-llama/Llama-3.1-8B-Instruct"
+    #
+    # To use gated models:
+    # 1. Create HuggingFace account: https://huggingface.co/
+    # 2. Request access to model on its page
+    # 3. Run: huggingface-cli login
+    # 4. Or set: export HF_TOKEN="your-token-here"
+    model_name: "Qwen/Qwen2.5-7B-Instruct"  # Changed to free model (no login required)
 
     # Device: "cuda" | "cpu"
     # Auto-detects if not specified

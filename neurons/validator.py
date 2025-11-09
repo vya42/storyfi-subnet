@@ -770,7 +770,7 @@ def get_config():
     bt.logging.add_args(parser)
 
     # Add custom arguments
-    parser.add_argument("--netuid", type=int, default=42, help="Subnet netuid")
+    parser.add_argument("--netuid", type=int, default=108, help="Subnet netuid (StoryFi subnet ID)")
 
     # Parse and add bittensor config
     config = bt.config(parser)
