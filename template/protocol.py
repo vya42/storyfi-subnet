@@ -12,7 +12,12 @@ Task Types:
 - story_arc: Generate 12-chapter story structure
 - chapters: Generate detailed chapter content with choices
 
-PROTOCOL VERSION: 3.1.0
+PROTOCOL VERSION: 3.2.0
+CHANGES FROM 3.1.0:
+- Added model_info field for transparency and quality control
+- Miners must disclose which model they use for generation
+- Enables validators to apply dynamic reward multipliers based on model quality
+
 CHANGES FROM 3.0.0:
 - Fixed SynapseParsingError by overriding get_total_size()
 - Now returns header-only size instead of full object size
@@ -85,7 +90,7 @@ class StoryGenerationSynapse(bt.Synapse):
 
     # Protocol version
     protocol_version: str = Field(
-        default="3.1.0",
+        default="3.2.0",
         description="Protocol version for compatibility checking"
     )
 
@@ -136,6 +141,17 @@ class StoryGenerationSynapse(bt.Synapse):
     miner_version: str = Field(
         default="",
         description="Miner software version"
+    )
+
+    model_info: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "mode": "unknown",
+            "name": "unknown",
+            "version": None,
+            "provider": None,
+            "parameters": {}
+        },
+        description="Model information for transparency and quality scoring"
     )
 
     # Metadata (auto-filled by framework)

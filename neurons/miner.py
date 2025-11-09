@@ -165,10 +165,19 @@ class StoryMiner:
                     # If not JSON, return raw text
                     output_data = {"generated_text": generated_content}
 
-            # Fill response fields (Protocol v3.1.0)
+            # Fill response fields (Protocol v3.2.0)
             synapse.output_data = output_data
             synapse.generation_time = t.elapsed
             synapse.miner_version = "2.0.0"  # Updated version with flexible generators
+
+            # Populate model_info for transparency (Protocol v3.2.0)
+            synapse.model_info = {
+                "mode": self.generator.get_mode(),
+                "name": self.generator.get_model_info().get("name", "unknown"),
+                "version": self.generator.get_model_info().get("version"),
+                "provider": self.generator.get_model_info().get("provider"),
+                "parameters": self.generator.get_model_info().get("parameters", {})
+            }
 
             # Update statistics
             self.requests_processed += 1
@@ -189,6 +198,16 @@ class StoryMiner:
             synapse.output_data = {"error": str(e)}
             synapse.generation_time = 0.0
             synapse.miner_version = "2.0.0"
+
+            # Include model_info even in error case for transparency
+            synapse.model_info = {
+                "mode": self.generator.get_mode(),
+                "name": self.generator.get_model_info().get("name", "unknown"),
+                "version": self.generator.get_model_info().get("version"),
+                "provider": self.generator.get_model_info().get("provider"),
+                "parameters": self.generator.get_model_info().get("parameters", {})
+            }
+
             return synapse
 
     # Note: All generation logic is now handled by GeneratorLoader

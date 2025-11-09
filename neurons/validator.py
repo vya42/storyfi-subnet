@@ -30,6 +30,7 @@ from typing import Dict, Any, List, Tuple, Optional
 
 import bittensor as bt
 import torch
+import yaml
 from dotenv import load_dotenv
 
 # Add parent directory to path
@@ -118,9 +119,119 @@ class StoryValidator:
             "一个AI觉醒的故事"
         ]
 
+        # Load model quality policy (Protocol v3.2.0)
+        self.model_policy = self._load_model_policy()
+
         bt.logging.info(f"✅ Wallet: {self.wallet.hotkey.ss58_address}")
         bt.logging.info(f"✅ Netuid: {self.config.netuid}")
         bt.logging.info(f"✅ Query interval: {self.query_interval}s")
+        bt.logging.info(f"✅ Model quality policy loaded")
+
+    def _load_model_policy(self) -> Dict[str, Any]:
+        """Load model quality policy from YAML file."""
+        policy_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "validators/config/model_policy.yaml"
+        )
+
+        try:
+            with open(policy_path, 'r', encoding='utf-8') as f:
+                policy = yaml.safe_load(f)
+                return policy
+        except Exception as e:
+            bt.logging.warning(f"Failed to load model policy: {e}, using defaults")
+            # Return default policy if file not found
+            return {
+                "quality_policy": {
+                    "min_quality_score": 0.6,
+                    "mode_multipliers": {
+                        "local": 1.5,
+                        "vllm": 1.5,
+                        "custom": 1.0,
+                        "api": 0.5,
+                        "unknown": 0.2
+                    },
+                    "recommended_models": [],
+                    "blacklisted_models": [],
+                    "penalties": {
+                        "no_model_info": 0.5
+                    }
+                }
+            }
+
+    def apply_model_quality_multiplier(
+        self,
+        base_score: float,
+        model_info: Dict[str, Any]
+    ) -> Tuple[float, Dict[str, Any]]:
+        """
+        Apply model quality policy to adjust score (Protocol v3.2.0).
+
+        Args:
+            base_score: Base score from content/structure/technical evaluation (0-100)
+            model_info: Model information from miner
+
+        Returns:
+            Tuple of (adjusted_score, multiplier_breakdown)
+        """
+        policy = self.model_policy.get("quality_policy", {})
+        multiplier_info = {
+            "mode_multiplier": 1.0,
+            "model_bonus": 1.0,
+            "penalty": 1.0,
+            "final_multiplier": 1.0
+        }
+
+        # Check if model_info is missing or unknown
+        if not model_info or model_info.get("mode") == "unknown":
+            penalty = policy.get("penalties", {}).get("no_model_info", 0.5)
+            multiplier_info["penalty"] = penalty
+            multiplier_info["final_multiplier"] = penalty
+            final_score = base_score * penalty
+            bt.logging.warning(f"⚠️  No model info provided, applying {penalty}x penalty")
+            return final_score, multiplier_info
+
+        mode = model_info.get("mode", "unknown")
+        model_name = model_info.get("name", "unknown")
+
+        # 1. Apply mode multiplier
+        mode_multipliers = policy.get("mode_multipliers", {})
+        mode_mult = mode_multipliers.get(mode, 1.0)
+        multiplier_info["mode_multiplier"] = mode_mult
+
+        # 2. Check blacklist (instant disqualification)
+        blacklist = policy.get("blacklisted_models", [])
+        if any(blacklisted in model_name for blacklisted in blacklist):
+            bt.logging.error(f"🚫 Blacklisted model detected: {model_name}")
+            return 0.0, multiplier_info
+
+        # 3. Check recommended models for bonus
+        model_bonus = 1.0
+        for rec_model in policy.get("recommended_models", []):
+            if rec_model["name"] in model_name:
+                model_bonus = rec_model.get("bonus", 1.0)
+                multiplier_info["model_bonus"] = model_bonus
+                bt.logging.info(f"✨ Recommended model {model_name}, {model_bonus}x bonus")
+                break
+
+        # Calculate final multiplier
+        final_multiplier = mode_mult * model_bonus
+        multiplier_info["final_multiplier"] = final_multiplier
+
+        # Apply multiplier
+        final_score = base_score * final_multiplier
+
+        # Apply minimum quality threshold
+        min_quality = policy.get("min_quality_score", 0.6)
+        normalized_score = base_score / 100.0
+        if normalized_score < min_quality:
+            bt.logging.warning(
+                f"⚠️  Score {base_score:.2f} below minimum quality {min_quality*100:.2f}, "
+                f"setting to 0"
+            )
+            return 0.0, multiplier_info
+
+        return final_score, multiplier_info
 
     def select_task_type(self) -> str:
         """Randomly select a task type based on distribution."""
@@ -234,14 +345,20 @@ class StoryValidator:
         context: Dict[str, Any]
     ) -> Tuple[float, Dict[str, Any]]:
         """
-        Score a miner's response using 3-part scoring system (Protocol v3.0.0).
+        Score a miner's response using 3-part scoring system with model quality multiplier (Protocol v3.2.0).
+
+        Scoring components:
+        1. Technical Score (30 points): Validity, performance, format
+        2. Structure Score (40 points): Completeness, field quality
+        3. Content Score (30 points): Creativity, coherence, relevance
+        4. Model Quality Multiplier: Based on model mode, name, and quality policy
 
         Args:
             response: Miner's response synapse
             context: Task context
 
         Returns:
-            Tuple of (total_score, breakdown)
+            Tuple of (final_score, breakdown) where final_score includes model quality multiplier
         """
         # Initialize breakdown
         breakdown = {
@@ -290,11 +407,22 @@ class StoryValidator:
         breakdown["content"] = content_score
         breakdown["content_breakdown"] = content_breakdown
 
-        # Total score (0-100)
-        total = tech_score + struct_score + content_score
-        breakdown["total"] = total
+        # Base score (0-100)
+        base_score = tech_score + struct_score + content_score
+        breakdown["base_score"] = base_score
 
-        return total, breakdown
+        # Apply model quality multiplier (Protocol v3.2.0)
+        model_info = response.model_info if hasattr(response, 'model_info') else {}
+        final_score, multiplier_breakdown = self.apply_model_quality_multiplier(
+            base_score,
+            model_info
+        )
+
+        # Add multiplier info to breakdown
+        breakdown["model_quality"] = multiplier_breakdown
+        breakdown["total"] = final_score
+
+        return final_score, breakdown
 
     def detect_plagiarism(
         self,
