@@ -59,8 +59,11 @@ generator:
     max_memory: "16GB"
 
     # Use Flash Attention 2 (faster inference if GPU supports it)
-    # Requires: pip install flash-attn
-    use_flash_attention: true
+    # Optional optimization - set to true if you have:
+    # - Modern GPU (Ampere/Ada architecture or newer)
+    # - Installed: pip install flash-attn --no-build-isolation
+    # Benefits: 2-3x faster inference
+    use_flash_attention: false
 
   # ============================================
   # vLLM MODE CONFIGURATION (High Performance)
