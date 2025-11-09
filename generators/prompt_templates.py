@@ -108,7 +108,14 @@ For each character, provide:
 - personality_traits (3-5)
 - relationships (to other characters)
 
-Output as JSON array.""")
+Output as a JSON object with this structure:
+{
+  "characters": [
+    {...character 1...},
+    {...character 2...},
+    ...
+  ]
+}""")
             },
 
             "story_arc": {
@@ -127,7 +134,44 @@ For each chapter, provide:
 - character_focus
 - chapter_goal
 
-Output as JSON array.""")
+Output as a JSON object with this structure:
+{
+  "title": "...",
+  "description": "...",
+  "chapters": [...array of chapter objects...],
+  "arcs": [...story arcs...],
+  "themes": [...themes...],
+  "hooks": [...plot hooks...]
+}""")
+            },
+
+            "chapters": {
+                "system": "You are a writer creating immersive story chapters.",
+                "user": Template("""Generate detailed chapter content based on:
+
+Story Arc: ${story_arc}
+Characters: ${characters_context}
+Blueprint: ${blueprint_context}
+Chapter IDs: ${chapter_ids}
+
+For each requested chapter, write engaging content (500-1000 words) that:
+1. Continues the narrative
+2. Develops characters
+3. Includes meaningful choices for the player
+4. Advances the plot
+
+Output as a JSON object with this structure:
+{
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "title": "...",
+      "content": "...chapter text...",
+      "choices": [...player choices...]
+    },
+    ...
+  ]
+}""")
             },
 
             "chapter_content": {
