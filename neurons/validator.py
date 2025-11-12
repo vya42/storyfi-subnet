@@ -735,31 +735,36 @@ class StoryValidator:
                 bt.logging.debug(f"Evaluating Miner UID {uid} ({axon.ip}:{axon.port})")
                 bt.logging.debug(f"{'='*60}")
 
-                # Debug: Log response type and attributes
-                bt.logging.debug(f"Response type: {type(response)}")
-                bt.logging.debug(f"Response is None: {response is None}")
-                if response is not None:
-                    bt.logging.debug(f"Has output_data attr: {hasattr(response, 'output_data')}")
-                    if hasattr(response, 'output_data'):
-                        bt.logging.debug(f"output_data value: {response.output_data}")
-                        bt.logging.debug(f"output_data type: {type(response.output_data)}")
-                    bt.logging.debug(f"Response attributes: {dir(response)}")
-
-                # Skip if response is None or invalid
+                # Check and log response status (INFO level for operators to see without --logging.debug)
                 if response is None:
-                    bt.logging.warning(f"⚠️  Miner {uid}: Response is None")
+                    bt.logging.warning(
+                        f"⚠️  Miner {uid} ({axon.ip}:{axon.port}): Response is None "
+                        f"(connection failed, timeout, or invalid response)"
+                    )
                     scores[uid] = 0.0
                     continue
 
                 if not hasattr(response, 'output_data'):
-                    bt.logging.warning(f"⚠️  Miner {uid}: Response missing output_data attribute")
+                    bt.logging.warning(
+                        f"⚠️  Miner {uid} ({axon.ip}:{axon.port}): Response missing output_data attribute "
+                        f"(response type: {type(response).__name__})"
+                    )
+                    bt.logging.info(f"   Available attributes: {[a for a in dir(response) if not a.startswith('_')][:10]}")
                     scores[uid] = 0.0
                     continue
 
                 if response.output_data is None:
-                    bt.logging.warning(f"⚠️  Miner {uid}: output_data is None")
+                    bt.logging.warning(
+                        f"⚠️  Miner {uid} ({axon.ip}:{axon.port}): output_data is None "
+                        f"(gen_time: {getattr(response, 'generation_time', 'unknown')}s)"
+                    )
                     scores[uid] = 0.0
                     continue
+
+                # Additional debug details (only with --logging.debug)
+                bt.logging.debug(f"Response type: {type(response)}")
+                bt.logging.debug(f"output_data type: {type(response.output_data)}")
+                bt.logging.debug(f"output_data value: {response.output_data}")
 
                 # Log response metadata
                 bt.logging.debug(f"Response metadata:")
