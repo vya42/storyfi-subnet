@@ -98,6 +98,10 @@ class StoryMiner:
 
         self.axon = bt.axon(wallet=self.wallet, config=self.config)
 
+        # Log axon info for debugging
+        bt.logging.info(f"📡 Axon IP: {self.axon.external_ip}")
+        bt.logging.info(f"📡 Axon Port: {self.axon.external_port}")
+
         # Attach forward function
         self.axon.attach(
             forward_fn=self.forward,
@@ -114,7 +118,7 @@ class StoryMiner:
             axon=self.axon
         )
 
-        bt.logging.info(f"✅ Axon started on port {self.axon.external_port}")
+        bt.logging.info(f"✅ Axon registered: {self.axon.external_ip}:{self.axon.external_port}")
         bt.logging.info(f"✅ Registered to subnet {self.config.netuid}")
 
     async def forward(self, synapse: StoryGenerationSynapse) -> StoryGenerationSynapse:
@@ -311,6 +315,7 @@ def get_config():
     parser.add_argument("--logging.info", action="store_true", help="Enable info logging")
     parser.add_argument("--logging.debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--axon.port", type=int, default=8091, help="Axon port")
+    parser.add_argument("--axon.external_ip", type=str, default=None, help="External IP address (required for cloud/NAT servers)")
 
     # Parse and add bittensor config
     config = bt.config(parser)

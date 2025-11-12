@@ -498,6 +498,42 @@ class StoryValidator:
 
         return intersection / union if union > 0 else 0.0
 
+    def _is_axon_valid(self, axon: bt.AxonInfo) -> bool:
+        """
+        Check if an axon is valid for connection.
+
+        Filters out:
+        - 0.0.0.0 IP addresses (unregistered/invalid)
+        - Invalid ports
+        - Missing hotkeys
+
+        Args:
+            axon: AxonInfo object to check
+
+        Returns:
+            True if axon is valid, False otherwise
+        """
+        # Check if IP is not None or empty
+        if not axon.ip:
+            return False
+
+        # Check if IP is not 0.0.0.0
+        if axon.ip == "0.0.0.0":
+            bt.logging.debug(f"Filtered axon with 0.0.0.0 IP (hotkey: {axon.hotkey[:8]}...)")
+            return False
+
+        # Check if port is valid (not 0 and in valid range)
+        if axon.port <= 0 or axon.port > 65535:
+            bt.logging.debug(f"Filtered axon with invalid port {axon.port}")
+            return False
+
+        # Check if hotkey is not empty
+        if not axon.hotkey:
+            bt.logging.debug("Filtered axon with missing hotkey")
+            return False
+
+        return True
+
     def update_ema_scores(self, new_scores: Dict[int, float]):
         """Update EMA scores for miners."""
         for uid, score in new_scores.items():
@@ -583,6 +619,26 @@ class StoryValidator:
                 bt.logging.warning("No weights to set")
                 return
 
+            # Log weight calculation details
+            bt.logging.info("Weight calculation details:")
+            sorted_weights = sorted(weights_dict.items(), key=lambda x: x[1], reverse=True)
+            for uid, weight in sorted_weights[:10]:  # Show top 10
+                # Get miner info
+                try:
+                    axon = self.metagraph.axons[uid]
+                    stake = self.metagraph.S[uid].item()
+                    ema_score = self.scores.get(uid, 0)
+                    bt.logging.info(
+                        f"  UID {uid}: weight={weight:.4f} "
+                        f"(score={ema_score:.2f}, stake={stake:.2f}τ, "
+                        f"ip={axon.ip}:{axon.port})"
+                    )
+                except Exception as e:
+                    bt.logging.debug(f"  UID {uid}: weight={weight:.4f} (error getting details: {e})")
+
+            if len(sorted_weights) > 10:
+                bt.logging.info(f"  ... and {len(sorted_weights) - 10} more miners")
+
             # Convert to lists
             uids = list(weights_dict.keys())
             weights = [weights_dict[uid] for uid in uids]
@@ -590,6 +646,10 @@ class StoryValidator:
             # Convert to tensors
             uids_tensor = torch.tensor(uids, dtype=torch.int64)
             weights_tensor = torch.tensor(weights, dtype=torch.float32)
+
+            bt.logging.info(f"Submitting weights to chain...")
+            bt.logging.debug(f"  UIDs: {uids[:20]}{'...' if len(uids) > 20 else ''}")
+            bt.logging.debug(f"  Weights sum: {sum(weights):.4f}")
 
             # Set weights
             success, message = self.subtensor.set_weights(
@@ -602,7 +662,8 @@ class StoryValidator:
             )
 
             if success:
-                bt.logging.success(f"✅ Weights set: {len(uids)} miners")
+                bt.logging.success(f"✅ Weights set successfully: {len(uids)} miners")
+                bt.logging.info(f"   Transaction broadcast to chain")
             else:
                 bt.logging.error(f"❌ Failed to set weights: {message}")
 
@@ -624,8 +685,13 @@ class StoryValidator:
             all_miners = self.metagraph.axons
             available_miners = [
                 (i, axon) for i, axon in enumerate(all_miners)
-                if i not in self.blacklist
+                if i not in self.blacklist and self._is_axon_valid(axon)
             ]
+
+            # Log filtered miners count
+            filtered_count = len(all_miners) - len(available_miners) - len(self.blacklist)
+            if filtered_count > 0:
+                bt.logging.debug(f"Filtered out {filtered_count} invalid axons (0.0.0.0 or invalid config)")
 
             if not available_miners:
                 bt.logging.warning("No available miners")
@@ -652,6 +718,10 @@ class StoryValidator:
 
             bt.logging.info(f"📡 Querying {len(selected_axons)} miners: {selected_uids}")
 
+            # Log miner IPs for debugging
+            for uid, axon in zip(selected_uids, selected_axons):
+                bt.logging.debug(f"  → UID {uid}: {axon.ip}:{axon.port}")
+
             # 4. Query miners
             with Timer() as t:
                 responses = await self.query_miners(synapse, selected_axons)
@@ -660,12 +730,26 @@ class StoryValidator:
 
             # 5. Score responses
             scores = {}
-            for uid, response in zip(selected_uids, responses):
+            for uid, response, axon in zip(selected_uids, responses, selected_axons):
+                bt.logging.debug(f"\n{'='*60}")
+                bt.logging.debug(f"Evaluating Miner UID {uid} ({axon.ip}:{axon.port})")
+                bt.logging.debug(f"{'='*60}")
+
                 # Skip if response is None or invalid
                 if response is None or not hasattr(response, 'output_data'):
-                    bt.logging.warning(f"⚠️  Miner {uid}: Invalid response")
+                    bt.logging.warning(f"⚠️  Miner {uid}: Invalid response (None or missing output_data)")
                     scores[uid] = 0.0
                     continue
+
+                # Log response metadata
+                bt.logging.debug(f"Response metadata:")
+                bt.logging.debug(f"  - Generation time: {response.generation_time:.2f}s")
+                bt.logging.debug(f"  - Miner version: {getattr(response, 'miner_version', 'unknown')}")
+                bt.logging.debug(f"  - Model info: {getattr(response, 'model_info', {})}")
+
+                # Log output data preview
+                output_preview = str(response.output_data)[:200] + "..." if len(str(response.output_data)) > 200 else str(response.output_data)
+                bt.logging.debug(f"  - Output preview: {output_preview}")
 
                 # Check plagiarism
                 is_plagiarism, plag_type, similarity = self.detect_plagiarism(response, responses)
@@ -685,12 +769,29 @@ class StoryValidator:
                 score, breakdown = self.score_response(response, context)
                 scores[uid] = score
 
-                bt.logging.info(
-                    f"📊 Miner {uid}: {score:.2f} points "
-                    f"(tech={breakdown['technical']:.1f}, "
-                    f"struct={breakdown['structure']:.1f}, "
-                    f"content={breakdown['content']:.1f})"
-                )
+                # Detailed scoring breakdown
+                bt.logging.info(f"📊 Miner {uid} ({axon.ip}): {score:.2f} points")
+                bt.logging.debug(f"  Technical Score: {breakdown['technical']:.1f}/30")
+                if 'technical_breakdown' in breakdown:
+                    for k, v in breakdown['technical_breakdown'].items():
+                        bt.logging.debug(f"    - {k}: {v}")
+
+                bt.logging.debug(f"  Structure Score: {breakdown['structure']:.1f}/40")
+                if 'structure_breakdown' in breakdown:
+                    for k, v in breakdown['structure_breakdown'].items():
+                        bt.logging.debug(f"    - {k}: {v}")
+
+                bt.logging.debug(f"  Content Score: {breakdown['content']:.1f}/30")
+                if 'content_breakdown' in breakdown:
+                    for k, v in breakdown['content_breakdown'].items():
+                        bt.logging.debug(f"    - {k}: {v}")
+
+                bt.logging.debug(f"  Base Score: {breakdown.get('base_score', 0):.2f}/100")
+
+                if 'model_quality' in breakdown:
+                    bt.logging.debug(f"  Model Quality Multiplier: {breakdown['model_quality'].get('final_multiplier', 1.0):.2f}x")
+
+                bt.logging.debug(f"  Final Score: {score:.2f}")
 
                 # Record history (v3.0.0: store output_data instead of output_json)
                 self.history.append({
@@ -711,6 +812,9 @@ class StoryValidator:
 
             # 8. Set weights periodically
             if self.total_queries % self.weight_update_frequency == 0:
+                bt.logging.info(f"\n{'='*60}")
+                bt.logging.info(f"Setting weights (query #{self.total_queries})")
+                bt.logging.info(f"{'='*60}")
                 await self.set_weights()
 
         except Exception as e:
