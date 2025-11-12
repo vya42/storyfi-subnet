@@ -735,9 +735,29 @@ class StoryValidator:
                 bt.logging.debug(f"Evaluating Miner UID {uid} ({axon.ip}:{axon.port})")
                 bt.logging.debug(f"{'='*60}")
 
+                # Debug: Log response type and attributes
+                bt.logging.debug(f"Response type: {type(response)}")
+                bt.logging.debug(f"Response is None: {response is None}")
+                if response is not None:
+                    bt.logging.debug(f"Has output_data attr: {hasattr(response, 'output_data')}")
+                    if hasattr(response, 'output_data'):
+                        bt.logging.debug(f"output_data value: {response.output_data}")
+                        bt.logging.debug(f"output_data type: {type(response.output_data)}")
+                    bt.logging.debug(f"Response attributes: {dir(response)}")
+
                 # Skip if response is None or invalid
-                if response is None or not hasattr(response, 'output_data'):
-                    bt.logging.warning(f"⚠️  Miner {uid}: Invalid response (None or missing output_data)")
+                if response is None:
+                    bt.logging.warning(f"⚠️  Miner {uid}: Response is None")
+                    scores[uid] = 0.0
+                    continue
+
+                if not hasattr(response, 'output_data'):
+                    bt.logging.warning(f"⚠️  Miner {uid}: Response missing output_data attribute")
+                    scores[uid] = 0.0
+                    continue
+
+                if response.output_data is None:
+                    bt.logging.warning(f"⚠️  Miner {uid}: output_data is None")
                     scores[uid] = 0.0
                     continue
 
