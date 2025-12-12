@@ -15,12 +15,13 @@ StoryFi Subnet 是一个运行在 Bittensor 网络上的去中心化AI故事生�
 
 ### 项目状态
 
-当前版本：**v2.0.0-alpha**
+当前版本：**v2.0.0** (Production Ready)
 
 - ✅ 激励机制设计完成
 - ✅ Protocol 通信协议完成
 - ✅ Miner 实现完成（支持灵活生成后端）
-- ⏳ Validator 实现中
+- ✅ Validator 实现完成（评分 + 反作弊）
+- ✅ **已部署到 Subnet 92 (Mainnet)**
 
 ### 新特性 (v2.0.0)
 
@@ -123,26 +124,51 @@ nano .env
 ### 4. 运行 Miner
 
 ```bash
+# 注册到 Subnet 92
+btcli subnet register --netuid 92 --wallet.name my_miner --wallet.hotkey default
+
+# 启动 Miner
 python neurons/miner.py \
-    --netuid 42 \
+    --netuid 92 \
     --wallet.name my_miner \
     --wallet.hotkey default \
+    --subtensor.network finney \
+    --axon.port 8091 \
+    --logging.info
+```
+
+**云服务器部署（需要外网 IP）：**
+```bash
+python neurons/miner.py \
+    --netuid 92 \
+    --wallet.name my_miner \
+    --wallet.hotkey default \
+    --subtensor.network finney \
+    --axon.port 8091 \
+    --axon.external_ip YOUR_PUBLIC_IP \
+    --axon.external_port 8091 \
     --logging.info
 ```
 
 矿工启动时会显示：
 ```
-✅ Generator Mode: local
-✅ Model: meta-llama/Llama-3.1-8B-Instruct
+✅ Generator Mode: api
+✅ Model: glm-4-flash
+✅ Registered to subnet 92
 ```
 
 ### 5. 运行 Validator
 
 ```bash
+# 注册到 Subnet 92
+btcli subnet register --netuid 92 --wallet.name my_validator --wallet.hotkey default
+
+# 启动 Validator
 python neurons/validator.py \
-    --netuid 42 \
+    --netuid 92 \
     --wallet.name my_validator \
     --wallet.hotkey default \
+    --subtensor.network finney \
     --logging.info
 ```
 
