@@ -98,6 +98,19 @@ class StoryMiner:
 
         self.axon = bt.axon(wallet=self.wallet, config=self.config)
 
+        # Override external IP/port if specified in config (for NAT/tunnel scenarios)
+        try:
+            ext_ip = getattr(self.config.axon, 'external_ip', None)
+            ext_port = getattr(self.config.axon, 'external_port', None)
+            if ext_ip:
+                bt.logging.info(f"🔧 Setting external IP to: {ext_ip}")
+                self.axon.external_ip = ext_ip
+            if ext_port:
+                bt.logging.info(f"🔧 Setting external port to: {ext_port}")
+                self.axon.external_port = int(ext_port)
+        except Exception as e:
+            bt.logging.warning(f"Could not set external IP/port: {e}")
+
         # Log axon info for debugging
         bt.logging.info(f"📡 Axon IP: {self.axon.external_ip}")
         bt.logging.info(f"📡 Axon Port: {self.axon.external_port}")
@@ -316,6 +329,7 @@ def get_config():
     parser.add_argument("--logging.debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--axon.port", type=int, default=8091, help="Axon port")
     parser.add_argument("--axon.external_ip", type=str, default=None, help="External IP address (required for cloud/NAT servers)")
+    parser.add_argument("--axon.external_port", type=int, default=None, help="External port (for NAT/tunnel scenarios, e.g. ngrok)")
 
     # Parse and add bittensor config
     config = bt.config(parser)
