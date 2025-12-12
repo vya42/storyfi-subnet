@@ -744,6 +744,35 @@ class StoryValidator:
                     scores[uid] = 0.0
                     continue
 
+                # Handle both Synapse object and dict response types
+                # (Bittensor may return dict instead of deserialized Synapse in some cases)
+                if isinstance(response, dict):
+                    bt.logging.info(f"📦 Response is dict. Keys: {list(response.keys())}")
+
+                    # Case 1: Response dict has standard synapse fields (output_data, generation_time, etc.)
+                    if 'output_data' in response:
+                        output_data_val = response.get('output_data')
+                        bt.logging.info(f"   Using output_data field from response")
+                    # Case 2: Response is the deserialized output_data directly (e.g. {'generated_text': '...'} or task results)
+                    else:
+                        # The dendrite may return the output_data directly after calling deserialize()
+                        output_data_val = response
+                        bt.logging.info(f"   Treating entire response dict as output_data")
+
+                    # Convert dict to Synapse for uniform handling
+                    response = StoryGenerationSynapse(
+                        task_type=response.get('task_type', synapse.task_type),
+                        user_input=response.get('user_input', synapse.user_input),
+                        blueprint=response.get('blueprint', synapse.blueprint),
+                        characters=response.get('characters', synapse.characters),
+                        story_arc=response.get('story_arc', synapse.story_arc),
+                        chapter_ids=response.get('chapter_ids', synapse.chapter_ids),
+                        output_data=output_data_val,
+                        generation_time=response.get('generation_time', 0.0),
+                        miner_version=response.get('miner_version', 'unknown'),
+                        model_info=response.get('model_info', {})
+                    )
+
                 if not hasattr(response, 'output_data'):
                     bt.logging.warning(
                         f"⚠️  Miner {uid} ({axon.ip}:{axon.port}): Response missing output_data attribute "
@@ -753,27 +782,33 @@ class StoryValidator:
                     scores[uid] = 0.0
                     continue
 
-                if response.output_data is None:
+                # Extract response data for logging
+                output_data = response.output_data
+                generation_time = getattr(response, 'generation_time', 0.0)
+                miner_version = getattr(response, 'miner_version', 'unknown')
+                model_info = getattr(response, 'model_info', {})
+
+                if output_data is None:
                     bt.logging.warning(
                         f"⚠️  Miner {uid} ({axon.ip}:{axon.port}): output_data is None "
-                        f"(gen_time: {getattr(response, 'generation_time', 'unknown')}s)"
+                        f"(gen_time: {generation_time}s)"
                     )
                     scores[uid] = 0.0
                     continue
 
                 # Additional debug details (only with --logging.debug)
                 bt.logging.debug(f"Response type: {type(response)}")
-                bt.logging.debug(f"output_data type: {type(response.output_data)}")
-                bt.logging.debug(f"output_data value: {response.output_data}")
+                bt.logging.debug(f"output_data type: {type(output_data)}")
+                bt.logging.debug(f"output_data value: {output_data}")
 
                 # Log response metadata
                 bt.logging.debug(f"Response metadata:")
-                bt.logging.debug(f"  - Generation time: {response.generation_time:.2f}s")
-                bt.logging.debug(f"  - Miner version: {getattr(response, 'miner_version', 'unknown')}")
-                bt.logging.debug(f"  - Model info: {getattr(response, 'model_info', {})}")
+                bt.logging.debug(f"  - Generation time: {generation_time:.2f}s")
+                bt.logging.debug(f"  - Miner version: {miner_version}")
+                bt.logging.debug(f"  - Model info: {model_info}")
 
                 # Log output data preview
-                output_preview = str(response.output_data)[:200] + "..." if len(str(response.output_data)) > 200 else str(response.output_data)
+                output_preview = str(output_data)[:200] + "..." if len(str(output_data)) > 200 else str(output_data)
                 bt.logging.debug(f"  - Output preview: {output_preview}")
 
                 # Check plagiarism

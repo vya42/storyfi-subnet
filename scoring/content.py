@@ -241,7 +241,12 @@ def calculate_originality(data: Dict[str, Any], history: List[str]) -> float:
 
     # Check for exact duplicates
     for historical_response in history[-100:]:  # Check last 100 responses
-        historical_hash = hashlib.sha256(historical_response.encode()).hexdigest()
+        # Handle both dict and string historical responses
+        if isinstance(historical_response, dict):
+            hist_str = json.dumps(historical_response, ensure_ascii=False, sort_keys=True)
+        else:
+            hist_str = str(historical_response)
+        historical_hash = hashlib.sha256(hist_str.encode()).hexdigest()
         if current_hash == historical_hash:
             return 0.0  # Exact duplicate
 
@@ -249,7 +254,11 @@ def calculate_originality(data: Dict[str, Any], history: List[str]) -> float:
     max_similarity = 0.0
     for historical_response in history[-20:]:  # Check last 20 for similarity
         try:
-            historical_data = json.loads(historical_response)
+            # Handle both dict and string historical responses
+            if isinstance(historical_response, dict):
+                historical_data = historical_response
+            else:
+                historical_data = json.loads(historical_response)
             similarity = calculate_simple_similarity(data, historical_data)
             max_similarity = max(max_similarity, similarity)
         except json.JSONDecodeError:
