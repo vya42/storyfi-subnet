@@ -307,7 +307,7 @@ def get_config():
     parser = argparse.ArgumentParser()
 
     # Bittensor arguments
-    parser.add_argument("--netuid", type=int, default=108, help="Subnet netuid (StoryFi subnet ID)")
+    parser.add_argument("--netuid", type=int, default=92, help="Subnet netuid (StoryFi subnet ID)")
     parser.add_argument("--wallet.name", type=str, default="miner", help="Wallet name")
     parser.add_argument("--wallet.hotkey", type=str, default="default", help="Wallet hotkey")
     parser.add_argument("--subtensor.network", type=str, default="finney", help="Bittensor network (finney=mainnet, test=testnet)")
