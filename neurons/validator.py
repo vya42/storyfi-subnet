@@ -1,5 +1,5 @@
 """
-StoryFi Bittensor Validator
+StoryNet Bittensor Validator
 ============================
 
 This validator:
@@ -51,7 +51,8 @@ from template.utils import (
 from scoring import (
     calculate_technical_score,
     calculate_structure_score,
-    calculate_content_score
+    calculate_content_score,
+    calculate_narrative_score
 )
 
 # Load environment variables
@@ -60,7 +61,7 @@ load_dotenv()
 
 class StoryValidator:
     """
-    StoryFi Validator that evaluates miners and distributes rewards.
+    StoryNet Validator that evaluates miners and distributes rewards.
 
     The validator:
     1. Periodically queries miners with story generation tasks
@@ -73,7 +74,7 @@ class StoryValidator:
     def __init__(self, config: bt.config):
         """Initialize the validator."""
         self.config = config
-        bt.logging.info("Initializing StoryFi Validator...")
+        bt.logging.info("Initializing StoryNet Validator...")
 
         # Initialize Bittensor components
         self.wallet = bt.wallet(config=self.config)
@@ -145,16 +146,16 @@ class StoryValidator:
                 "quality_policy": {
                     "min_quality_score": 0.6,
                     "mode_multipliers": {
-                        "local": 1.5,
-                        "vllm": 1.5,
+                        "local": 1.0,
+                        "vllm": 1.0,
                         "custom": 1.0,
-                        "api": 0.5,
-                        "unknown": 0.2
+                        "api": 1.0,
+                        "unknown": 1.0
                     },
                     "recommended_models": [],
                     "blacklisted_models": [],
                     "penalties": {
-                        "no_model_info": 0.5
+                        "no_model_info": 1.0
                     }
                 }
             }
@@ -376,39 +377,55 @@ class StoryValidator:
         # Get required fields
         required_fields = response.get_required_output_fields()
 
-        # 1. Technical Score (30 points)
+        # 1. Technical Score (20 points) - Objective, rule-based
         # v3.0.0: convert output_data to JSON string for technical scoring
         output_json_str = json.dumps(data, ensure_ascii=False)
-        tech_score, tech_breakdown = calculate_technical_score(
+        tech_score_raw, tech_breakdown = calculate_technical_score(
             output_json_str,
             response.generation_time,
             response.task_type,
             required_fields
         )
+        # Scale from 30 to 20 points
+        tech_score = tech_score_raw * (20.0 / 30.0)
         breakdown["technical"] = tech_score
         breakdown["technical_breakdown"] = tech_breakdown
 
-        # 2. Structure Score (40 points)
-        struct_score, struct_breakdown = calculate_structure_score(
+        # 2. Structure Score (30 points) - Objective, rule-based
+        struct_score_raw, struct_breakdown = calculate_structure_score(
             data,
             response.task_type
         )
+        # Scale from 40 to 30 points
+        struct_score = struct_score_raw * (30.0 / 40.0)
         breakdown["structure"] = struct_score
         breakdown["structure_breakdown"] = struct_breakdown
 
-        # 3. Content Score (30 points)
-        content_score, content_breakdown = calculate_content_score(
+        # 3. Content Score (20 points) - Semi-objective, heuristic-based
+        content_score_raw, content_breakdown = calculate_content_score(
             data,
             context,
             response.task_type,
             history=[h["output_data"] for h in list(self.history)[-20:]],
             use_embeddings=False  # Set to True when OpenAI embeddings are available
         )
+        # Scale from 30 to 20 points
+        content_score = content_score_raw * (20.0 / 30.0)
         breakdown["content"] = content_score
         breakdown["content_breakdown"] = content_breakdown
 
+        # 4. Narrative Merit Score (30 points) - AI-based evaluation
+        # This uses server-side LLM evaluation with private prompts
+        narrative_score, narrative_breakdown = calculate_narrative_score(
+            data,
+            context,
+            response.task_type
+        )
+        breakdown["narrative"] = narrative_score
+        breakdown["narrative_breakdown"] = narrative_breakdown
+
         # Base score (0-100)
-        base_score = tech_score + struct_score + content_score
+        base_score = tech_score + struct_score + content_score + narrative_score
         breakdown["base_score"] = base_score
 
         # Apply model quality multiplier (Protocol v3.2.0)
@@ -934,7 +951,7 @@ def get_config():
     bt.logging.add_args(parser)
 
     # Add custom arguments
-    parser.add_argument("--netuid", type=int, default=92, help="Subnet netuid (StoryFi subnet ID)")
+    parser.add_argument("--netuid", type=int, default=92, help="Subnet netuid (StoryNet subnet ID)")
 
     # Parse and add bittensor config
     config = bt.config(parser)

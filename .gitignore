@@ -6,6 +6,11 @@
 # Generator configuration (contains personal API settings)
 config/generator_config.yaml
 
+# Narrative evaluation config (contains proprietary evaluation prompts)
+# Only the .example.yaml should be committed
+config/narrative_eval.yaml
+config/narrative_config.yaml
+
 # Python
 __pycache__/
 *.py[cod]
